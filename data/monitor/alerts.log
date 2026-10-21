@@ -1,0 +1,73 @@
+======================================================================
+🚨 [CẢNH BÁO SỰ CỐ PIPELINE] - 2026-10-20 08:29:42 UTC
+======================================================================
+• Thành phần     : <MagicMock name='run().execution_record.original_log.component' id='1627816306608'>
+• Thông báo lỗi  : <MagicMock name='run().execution_record.original_log.error' id='1627816307280'>
+• Thông tin ngữ cảnh:
+----------------------------------------------------------------------
+                KẾT QUẢ PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ (RCA)
+----------------------------------------------------------------------
+• Loại lỗi xác định   : <MagicMock name='run().analysis.error_type' id='1627816310304'>
+• Mức độ nghiêm trọng : <MagicMock name='run().analysis.severity' id='1627816310976'>
+• Độ tin cậy (AI)     : <MagicMock name='run().analysis.confidence.__mul__().__round__()' id='1627816591776'>%
+• Bằng chứng thực tế  :
+• Nguyên nhân có thể  :
+• Đề xuất xử lý       : <MagicMock name='run().analysis.recommendation' id='1627816594464'>
+======================================================================
+
+======================================================================
+🚨 [CẢNH BÁO SỰ CỐ PIPELINE] - 2026-10-20 14:27:56 UTC
+======================================================================
+• Thành phần     : Databricks Spark Engine
+• Thông báo lỗi  : Databricks Job Failed (New Job 2026-09-03 09:17:27) - State: FAILED
+• Thông tin ngữ cảnh:
+   - Run Id         : 393032285821819
+   - Job Id         : 517291405198661
+   - Failed Tasks   : ['Build_gold_view']
+   - Workspace      : https://dbc-725afd95-6af4.cloud.databricks.com
+   - Source         : databricks
+----------------------------------------------------------------------
+                KẾT QUẢ PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ (RCA)
+----------------------------------------------------------------------
+• Loại lỗi xác định   : Incorrect WHERE Clause Filtering
+• Mức độ nghiêm trọng : HIGH
+• Độ tin cậy (AI)     : 85.0%
+• Bằng chứng thực tế  :
+   - Query filters for f.track_id IS NULL which excludes tracks with stream data
+   - Includes t.album_id IS NOT NULL which may be redundant due to JOIN constraints
+   - Uses LEFT JOIN for fact_streams but filters out matched rows
+• Nguyên nhân có thể  :
+   - Misunderstanding of LEFT JOIN behavior with WHERE filters
+   - Redundant album_id validation due to JOIN constraints
+   - Incorrect business logic for identifying unstreamed tracks
+• Đề xuất xử lý       : Review the WHERE clause to ensure it aligns with the intended data filtering requirements. Verify if the exclusion of streamed tracks is intentional and adjust joins/conditions accordingly.
+======================================================================
+
+======================================================================
+🚨 [CẢNH BÁO SỰ CỐ PIPELINE] - 2026-10-21 07:26:48 UTC
+======================================================================
+• Thành phần     : Databricks Spark Engine
+• Thông báo lỗi  : Databricks Job Failed (New Job 2026-09-03 09:17:27) - State: FAILED
+• Thông tin ngữ cảnh:
+   - Run Id         : 393032285821819
+   - Job Id         : 517291405198661
+   - Failed Tasks   : ['Build_gold_view']
+   - Workspace      : https://dbc-725afd95-6af4.cloud.databricks.com
+   - Source         : databricks
+----------------------------------------------------------------------
+                KẾT QUẢ PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ (RCA)
+----------------------------------------------------------------------
+• Loại lỗi xác định   : Incorrect WHERE Clause Filtering
+• Mức độ nghiêm trọng : HIGH
+• Độ tin cậy (AI)     : 85.0%
+• Bằng chứng thực tế  :
+   - Query filters for f.track_id IS NULL which excludes tracks with stream data
+   - Includes t.album_id IS NOT NULL which may be redundant due to JOIN constraints
+   - Uses LEFT JOIN for fact_streams but filters out matched rows
+• Nguyên nhân có thể  :
+   - Misunderstanding of LEFT JOIN behavior with WHERE filters
+   - Redundant album_id validation due to JOIN constraints
+   - Incorrect business logic for identifying unstreamed tracks
+• Đề xuất xử lý       : Review the WHERE clause to ensure it aligns with the intended data filtering requirements. Verify if the exclusion of streamed tracks is intentional and adjust joins/conditions accordingly.
+======================================================================
+
