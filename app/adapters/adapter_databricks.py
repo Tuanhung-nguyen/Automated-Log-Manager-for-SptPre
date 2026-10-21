@@ -60,27 +60,50 @@ class DatabricksAdapter(BaseSourceAdapter):
         """
         Dành cho Databricks Webhook:
         Nhận gói tin JSON khi Databricks Job / Notification Destination bắn về.
-        - Databricks thường gửi event_type hoặc state (ví dụ: 'JOB_RUN_FAILED', 'FAILED').
+        Hỗ trợ cả chuẩn Databricks Nested Payload:
+        {
+          "event_type": "jobs.on_failure",
+          "run": {"run_id": 12345},
+          "job": {"job_id": 6789, "name": "SptPre"}
+        }
+        lẫn chuẩn Flat Payload: {"run_id": 12345, "state": "FAILED"}
         """
-        event_type = payload.get("event_type") or payload.get("event") or ""
-        state = payload.get("state") or payload.get("status") or ""
-        run_id = payload.get("run_id") or payload.get("runId")
+        run_obj = payload.get("run") if isinstance(payload.get("run"), dict) else {}
+        job_obj = payload.get("job") if isinstance(payload.get("job"), dict) else {}
 
-        # Kiểm tra xem có phải là sự cố thất bại hay không
+        event_type = payload.get("event_type") or payload.get("event") or ""
+        state = payload.get("state") or payload.get("status") or run_obj.get("state") or ""
+
+        run_id = (
+            payload.get("run_id")
+            or payload.get("runId")
+            or run_obj.get("run_id")
+            or run_obj.get("runId")
+        )
+
+        # Kiểm tra xem có phải là sự cố thất bại hay không (jobs.on_failure, tasks.on_failure, FAILED, INTERNAL_ERROR)
         is_failure = (
-            "FAIL" in str(event_type).upper() or
-            "FAIL" in str(state).upper() or
-            "ERROR" in str(event_type).upper()
+            "FAIL" in str(event_type).upper()
+            or "FAIL" in str(state).upper()
+            or "ERROR" in str(event_type).upper()
+            or "ERROR" in str(state).upper()
         )
 
         if not is_failure or not run_id:
             # Chạy thành công hoặc không phải sự cố -> Bỏ qua
             return None
 
-        job_name = payload.get("job_name") or payload.get("run_name") or "Databricks Job"
+        job_name = (
+            payload.get("job_name")
+            or payload.get("run_name")
+            or job_obj.get("name")
+            or run_obj.get("run_name")
+            or "Databricks Job"
+        )
+        job_id = payload.get("job_id") or job_obj.get("job_id") or run_obj.get("job_id")
 
         context = IncidentContext(
-            timestamp=str(payload.get("timestamp", "")),
+            timestamp=str(payload.get("timestamp") or run_obj.get("start_time") or ""),
             component="Databricks Spark Engine",
             error=f"Databricks Webhook Alert: {job_name} FAILED",
             log=(
@@ -88,8 +111,8 @@ class DatabricksAdapter(BaseSourceAdapter):
                 f"terminated with failure. Event: {event_type}. State: {state}."
             ),
             metrics={
-                "run_id": run_id,
-                "job_id": payload.get("job_id"),
+                "run_id": int(run_id),
+                "job_id": job_id,
                 "workspace": self.host,
                 "source": "databricks_webhook"
             }
