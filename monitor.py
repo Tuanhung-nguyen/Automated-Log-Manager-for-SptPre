@@ -69,7 +69,7 @@ def main():
     print("=" * 80)
     print(f"• Nền tảng (Source) : {adapter.source_name.upper()}")
     print(f"• Mã sự cố (ID)     : {args.id}")
-    llm_info = "Google Gemini 3.8 Flash (Cloud)" if settings.GEMINI_API_KEY else f"{settings.OLLAMA_MODEL} ({settings.OLLAMA_BASE_URL})"
+    llm_info = "Google Gemini 3.5 Flash (Cloud)" if settings.GEMINI_API_KEY else f"{settings.OLLAMA_MODEL} ({settings.OLLAMA_BASE_URL})"
     print(f"• LLM Model         : {llm_info}")
     print("=" * 80)
 
