@@ -1,5 +1,6 @@
 import requests
 import json
+import time
 from typing import Optional
 from app.core.exceptions import LLMAPIError
 from app.config import settings
@@ -27,8 +28,7 @@ class LLMClient:
         self.temperature = temperature if temperature is not None else settings.LLM_TEMPERATURE
 
     def _generate_gemini(self, prompt: str) -> str:
-        """Gọi Google Gemini 3.8 Flash qua REST API thuần (không cần cài thêm SDK)."""
-        # Endpoint Gemini 3.8 Flash chuẩn Google AI Studio
+        """Gọi Google Gemini 3.8 Flash qua REST API thuần với cơ chế tự động thử lại khi máy chủ bận (503/429)."""
         url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
         headers = {
             "Content-Type": "application/json",
@@ -45,19 +45,34 @@ class LLMClient:
             }
         }
 
-        try:
-            response = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-            # Trích xuất text từ response của Gemini
-            candidates = data.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts:
-                    return parts[0].get("text", "")
-            raise LLMAPIError(f"Gemini API không trả về content: {data}")
-        except requests.RequestException as e:
-            raise LLMAPIError(f"Gemini API request failed: {e}")
+        max_retries = 3
+        backoff_seconds = 2
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+                if response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
+                    print(f"⚠️ [GEMINI RETRY] Máy chủ Google phản hồi HTTP {response.status_code}. Tự động thử lại lần {attempt}/{max_retries} sau {backoff_seconds}s...")
+                    time.sleep(backoff_seconds)
+                    backoff_seconds *= 2
+                    continue
+
+                response.raise_for_status()
+                data = response.json()
+                # Trích xuất text từ response của Gemini
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "")
+                raise LLMAPIError(f"Gemini API không trả về content: {data}")
+            except requests.RequestException as e:
+                if attempt < max_retries:
+                    print(f"⚠️ [GEMINI RETRY] Lỗi kết nối ({e}). Thử lại lần {attempt}/{max_retries} sau {backoff_seconds}s...")
+                    time.sleep(backoff_seconds)
+                    backoff_seconds *= 2
+                else:
+                    raise LLMAPIError(f"Gemini API request failed sau {max_retries} lần thử: {e}")
 
     def _generate_ollama(self, prompt: str) -> str:
         """Gọi Ollama API Local."""

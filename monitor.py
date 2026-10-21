@@ -69,7 +69,8 @@ def main():
     print("=" * 80)
     print(f"• Nền tảng (Source) : {adapter.source_name.upper()}")
     print(f"• Mã sự cố (ID)     : {args.id}")
-    print(f"• LLM Model         : {settings.OLLAMA_MODEL} ({settings.OLLAMA_BASE_URL})")
+    llm_info = "Google Gemini 3.8 Flash (Cloud)" if settings.GEMINI_API_KEY else f"{settings.OLLAMA_MODEL} ({settings.OLLAMA_BASE_URL})"
+    print(f"• LLM Model         : {llm_info}")
     print("=" * 80)
 
     # 2. Lấy dữ liệu sự cố từ nguồn
