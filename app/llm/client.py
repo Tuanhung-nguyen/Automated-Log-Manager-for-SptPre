@@ -9,7 +9,7 @@ from app.config import settings
 class LLMClient:
     """
     LLMClient đa nền tảng:
-    - Nếu có cấu hình GEMINI_API_KEY -> Tự động gọi Google Gemini 2.5 Flash (Cloud / Free 100%).
+    - Nếu có cấu hình GEMINI_API_KEY -> Tự động gọi Google Gemini 3.8 Flash (Cloud / Free 100%).
     - Nếu không -> Tự động fallback về Ollama Local (qwen3:8b).
     """
 
