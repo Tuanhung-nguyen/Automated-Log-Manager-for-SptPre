@@ -45,15 +45,19 @@ class LLMClient:
             }
         }
 
-        max_retries = 3
-        backoff_seconds = 2
+        max_retries = 5
+        backoff_seconds = 3
 
         for attempt in range(1, max_retries + 1):
             try:
                 response = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
                 if response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
-                    print(f"⚠️ [GEMINI RETRY] Máy chủ Google phản hồi HTTP {response.status_code}. Tự động thử lại lần {attempt}/{max_retries} sau {backoff_seconds}s...")
-                    time.sleep(backoff_seconds)
+                    retry_after = response.headers.get("Retry-After")
+                    wait_time = int(retry_after) if retry_after and retry_after.isdigit() else backoff_seconds
+                    if response.status_code == 429:
+                        wait_time = max(wait_time, 5 * attempt)
+                    print(f"⚠️ [GEMINI RETRY] Máy chủ Google phản hồi HTTP {response.status_code} ({'Rate Limit' if response.status_code == 429 else 'Server Busy'}). Tự động thử lại lần {attempt}/{max_retries} sau {wait_time}s...")
+                    time.sleep(wait_time)
                     backoff_seconds *= 2
                     continue
 
