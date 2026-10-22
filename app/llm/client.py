@@ -28,8 +28,8 @@ class LLMClient:
         self.temperature = temperature if temperature is not None else settings.LLM_TEMPERATURE
 
     def _generate_gemini(self, prompt: str) -> str:
-        """Gọi Google Gemini 3.5 Flash qua REST API thuần với cơ chế tự động thử lại khi máy chủ bận (503/429)."""
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+        """Gọi Google Gemini 3.5 Flash Lite (500 requests/ngày) qua REST API thuần với cơ chế tự động thử lại khi máy chủ bận."""
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.gemini_api_key
