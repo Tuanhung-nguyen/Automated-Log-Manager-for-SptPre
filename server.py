@@ -11,7 +11,7 @@ from app.core import IncidentContext
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
     except Exception:
         pass
 
@@ -35,12 +35,15 @@ notifier = AlertNotifier()
 def _run_pipeline_async(ctx: IncidentContext):
     """Xử lý phân tích sự cố bằng AI ở Background Thread để webhook không bị timeout."""
     try:
-        print(f"🚀 [KÍCH HOẠT PHÂN TÍCH TỰ ĐỘNG] Chuyển log sang Agent Pipeline...")
+        print(f"🚀 [KÍCH HOẠT PHÂN TÍCH TỰ ĐỘNG] Chuyển log sang Agent Pipeline: {ctx.error}", flush=True)
         result = pipeline.run(ctx)
         notifier.send_alert(result)
-        print("✅ [BACKGROUND] Phân tích sự cố và gửi thông báo hoàn tất.")
+        print("✅ [BACKGROUND] Phân tích sự cố và gửi thông báo hoàn tất.", flush=True)
     except Exception as err:
-        print(f"❌ [BACKGROUND ERROR] Lỗi phân tích sự cố: {err}")
+        import traceback
+        print(f"❌ [BACKGROUND ERROR] Lỗi phân tích sự cố: {err}", flush=True)
+        traceback.print_exc(file=sys.stdout)
+        sys.stdout.flush()
 
 
 class GenericWebhookHandler(BaseHTTPRequestHandler):
@@ -94,14 +97,14 @@ class GenericWebhookHandler(BaseHTTPRequestHandler):
         except Exception:
             payload = {}
 
-        print(f"\n📨 [WEBHOOK NHẬN ĐƯỢC] Gói tin từ nguồn: '{source_name.upper()}'")
+        print(f"\n📨 [WEBHOOK NHẬN ĐƯỢC] Gói tin từ nguồn: '{source_name.upper()}'", flush=True)
 
         # 4. Giao toàn bộ việc bóc tách log cho chính Adapter của công cụ đó!
         context = adapter.parse_webhook_payload(payload)
 
         if context is None:
             # Không phải sự cố hoặc workflow thành công -> Bỏ qua
-            print(f"ℹ️ [WEBHOOK BỎ QUA] Sự kiện từ '{source_name}' chạy thành công hoặc không phải lỗi.")
+            print(f"ℹ️ [WEBHOOK BỎ QUA] Sự kiện từ '{source_name}' chạy thành công hoặc không phải lỗi.", flush=True)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -109,7 +112,7 @@ class GenericWebhookHandler(BaseHTTPRequestHandler):
             return
 
         # 5. Có sự cố thật -> Phản hồi 200 OK ngay lập tức (< 100ms) để Databricks/GitHub không bị timeout
-        print(f"🚨 [SỰ CỐ TỰ ĐỘNG PHÁT HIỆN]: {context.error}")
+        print(f"🚨 [SỰ CỐ TỰ ĐỘNG PHÁT HIỆN]: {context.error} (Run ID: {context.metrics.get('run_id')})", flush=True)
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
