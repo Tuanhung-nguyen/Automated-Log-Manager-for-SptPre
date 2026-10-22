@@ -1,11 +1,13 @@
 import sys
 import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from app.config import settings
 from app.llm import LLMClient
 from app.pipeline import IncidentPipeline, AgentRunner
 from app.monitor import AlertNotifier
 from app.adapters import get_adapter, list_supported_sources
+from app.core import IncidentContext
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -28,6 +30,17 @@ def build_pipeline() -> IncidentPipeline:
 # Khởi tạo Pipeline và Notifier dùng chung
 pipeline = build_pipeline()
 notifier = AlertNotifier()
+
+
+def _run_pipeline_async(ctx: IncidentContext):
+    """Xử lý phân tích sự cố bằng AI ở Background Thread để webhook không bị timeout."""
+    try:
+        print(f"🚀 [KÍCH HOẠT PHÂN TÍCH TỰ ĐỘNG] Chuyển log sang Agent Pipeline...")
+        result = pipeline.run(ctx)
+        notifier.send_alert(result)
+        print("✅ [BACKGROUND] Phân tích sự cố và gửi thông báo hoàn tất.")
+    except Exception as err:
+        print(f"❌ [BACKGROUND ERROR] Lỗi phân tích sự cố: {err}")
 
 
 class GenericWebhookHandler(BaseHTTPRequestHandler):
@@ -95,26 +108,26 @@ class GenericWebhookHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "IGNORED", "reason": "Not an incident"}).encode("utf-8"))
             return
 
-        # 5. Có sự cố thật -> Đẩy thẳng vào AI Pipeline!
+        # 5. Có sự cố thật -> Phản hồi 200 OK ngay lập tức (< 100ms) để Databricks/GitHub không bị timeout
         print(f"🚨 [SỰ CỐ TỰ ĐỘNG PHÁT HIỆN]: {context.error}")
-        print(f"🚀 [KÍCH HOẠT PHÂN TÍCH TỰ ĐỘNG] Chuyển log sang Agent Pipeline...")
-
-        result = pipeline.run(context)
-        notifier.send_alert(result)
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps({
-            "status": "PROCESSED",
+            "status": "ACCEPTED",
             "source": source_name,
-            "analysis_status": result.status
+            "message": "Incident received. AI analysis running in background."
         }).encode("utf-8"))
+
+        # 6. Chạy Agent Pipeline không đồng bộ ở Background Thread
+        thread = threading.Thread(target=_run_pipeline_async, args=(context,), daemon=True)
+        thread.start()
 
 
 def run_server(port: int = 8000):
     server_address = ("", port)
-    httpd = HTTPServer(server_address, GenericWebhookHandler)
+    httpd = ThreadingHTTPServer(server_address, GenericWebhookHandler)
     supported = list_supported_sources()
 
     print("=" * 80)
