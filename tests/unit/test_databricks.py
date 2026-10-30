@@ -93,14 +93,17 @@ class TestDatabricksIntegration(unittest.TestCase):
         self.assertEqual(ctx.component, "Databricks Spark Engine")
         self.assertEqual(ctx.metrics["run_id"], 7890)
 
-        # Test case 2: Sự kiện thành công -> Phải bỏ qua (None)
+        # Test case 2: Sự kiện thành công -> Nhận diện SUCCESS và error là None để ghi nhận DB
         payload_success = {
             "event_type": "JOB_RUN_SUCCEEDED",
             "run_id": 7891,
             "state": "SUCCESS"
         }
         ctx_success = adapter.parse_webhook_payload(payload_success)
-        self.assertIsNone(ctx_success)
+        self.assertIsNotNone(ctx_success)
+        self.assertIsNone(ctx_success.error)
+        self.assertEqual(ctx_success.metrics["status"], "SUCCESS")
+        self.assertEqual(ctx_success.metrics["run_id"], 7891)
 
     def test_policy_allows_databricks_tools(self):
         # Đảm bảo policy cho phép tự động thực thi các tool READ này

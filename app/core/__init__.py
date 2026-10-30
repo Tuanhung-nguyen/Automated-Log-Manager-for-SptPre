@@ -9,6 +9,7 @@ from .exceptions import (
     RetryExhaustedError,
 )
 from .models import (
+    PipelineRunContext,
     IncidentContext,
     IncidentAnalysis,
     HumanReviewRecord,
@@ -26,6 +27,7 @@ __all__ = [
     "SemanticValidationError",
     "EvidenceValidationError",
     "RetryExhaustedError",
+    "PipelineRunContext",
     "IncidentContext",
     "IncidentAnalysis",
     "HumanReviewRecord",

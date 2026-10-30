@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 import tempfile
 from pathlib import Path
 from app.core.models import AnalysisResult, IncidentAnalysis, IncidentContext

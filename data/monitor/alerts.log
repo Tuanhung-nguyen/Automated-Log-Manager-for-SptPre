@@ -71,3 +71,73 @@
 • Đề xuất xử lý       : Review the WHERE clause to ensure it aligns with the intended data filtering requirements. Verify if the exclusion of streamed tracks is intentional and adjust joins/conditions accordingly.
 ======================================================================
 
+======================================================================
+🚨 [CẢNH BÁO SỰ CỐ PIPELINE] - 2026-10-21 08:22:48 UTC
+======================================================================
+• Thành phần     : Databricks Spark Engine
+• Thông báo lỗi  : Databricks Job Failed (New Job 2026-09-03 09:17:27) - State: FAILED
+• Thông tin ngữ cảnh:
+   - Run Id         : 393032285821819
+   - Job Id         : 517291405198661
+   - Failed Tasks   : ['Build_gold_view']
+   - Workspace      : https://dbc-725afd95-6af4.cloud.databricks.com
+   - Source         : databricks
+----------------------------------------------------------------------
+                KẾT QUẢ PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ (RCA)
+----------------------------------------------------------------------
+• Loại lỗi xác định   : AnalysisException (UNRESOLVED_COLUMN)
+• Mức độ nghiêm trọng : HIGH
+• Độ tin cậy (AI)     : 98.0%
+• Bằng chứng thực tế  :
+   - Databricks Job Run ID 393032285821819 (Job ID: 517291405198661) gặp lỗi FAILED tại task 'Build_gold_view' (Task Run ID: 752161500318141).
+   - Task thất bại do AnalysisException với mã lỗi SQLSTATE 42703: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `t`.`track_number` cannot be resolved.
+   - Lỗi xảy ra trong câu lệnh SQL 'CREATE OR REPLACE VIEW spotify_gold.gold_unheard_recommendations' khi truy vấn trường `t`.`track_number` từ bảng `spotify_silver.dim_tracks t`.
+   - Hệ thống gợi ý các cột có sẵn tương tự gồm: [`t`.`track_name`, `t`.`track_id`, `f`.`track_id`, `b`.`track_id`, `t`.`album_name`].
+• Nguyên nhân có thể  :
+   - Schema của bảng `spotify_silver.dim_tracks` chưa từng có hoặc đã bị xóa/đổi tên trường `track_number` trong quá trình ETL Silver layer.
+   - Truy vấn SQL tạo view `gold_unheard_recommendations` tham chiếu sai tên cột hoặc cột `track_number` thuộc bảng khác (ví dụ `dim_albums` hoặc bảng khác) chứ không phải `dim_tracks`.
+• Đề xuất xử lý       : Kiểm tra schema thực tế của bảng `spotify_silver.dim_tracks` bằng lệnh `DESCRIBE spotify_silver.dim_tracks`. Nếu cột `track_number` không tồn tại, cập nhật lại view DDL `spotify_gold.gold_unheard_recommendations` bằng cách bỏ cột này hoặc bổ sung cột vào pipeline ETL tạo bảng `dim_tracks` trước khi trigger chạy lại Job.
+======================================================================
+
+======================================================================
+🚨 [CẢNH BÁO SỰ CỐ PIPELINE] - 2026-10-22 04:28:14 UTC
+======================================================================
+• Thành phần     : Databricks Spark Engine
+• Thông báo lỗi  : Databricks Job Failed (SptPre) - State: FAILED
+• Thông tin ngữ cảnh:
+   - Run Id         : 48864865263349
+   - Job Id         : 517291405198661
+   - Failed Tasks   : ['Build_silver_table_personal', 'Build_silver_table_personal', 'Build_silver_table_personal', 'Build_silver_table_personal']
+   - Workspace      : https://dbc-725afd95-6af4.cloud.databricks.com
+   - Source         : databricks
+----------------------------------------------------------------------
+                KẾT QUẢ PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ (RCA)
+----------------------------------------------------------------------
+• Loại lỗi xác định   : AnalysisException (FIELD_NOT_FOUND)
+• Mức độ nghiêm trọng : HIGH
+• Độ tin cậy (AI)     : 95.0%
+• Bằng chứng thực tế  :
+   - Databricks Job 'SptPre' (Run ID: 48864865263349, Job ID: 517291405198661) kết thúc với trạng thái FAILED.
+   - Task 'Build_silver_table_personal' (Task Run ID: 539473210234103) thất bại khiến tất cả các downstream tasks bị bỏ qua (skipped).
+   - Lỗi chi tiết ghi nhận từ run output: [FIELD_NOT_FOUND] No such struct field `namse` in `album_type`, `artists`, `external_urls`, `href`, `id`, `images`, `is_playable`, `name`, `release_date`, `release_date_precision`, `total_tracks`, `type`, `uri`. SQLSTATE: 42704.
+• Nguyên nhân có thể  :
+   - Lỗi nhập liệu/gõ phím (typo) của lập trình viên trong notebook cell [4] của task 'Build_silver_table_personal' khi tham chiếu cột/trường `namse` thay vì `name`.
+• Đề xuất xử lý       : Mở notebook của task 'Build_silver_table_personal' trên Databricks Workspace, kiểm tra cell [4] và sửa lại tên trường bị gõ sai từ `namse` thành `name`. Sau khi lưu thay đổi, khởi động lại Databricks Job.
+======================================================================
+
+======================================================================
+🚨 [CẢNH BÁO SỰ CỐ PIPELINE] - 2026-10-30 09:01:32 UTC
+======================================================================
+----------------------------------------------------------------------
+                KẾT QUẢ PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ (RCA)
+----------------------------------------------------------------------
+• Loại lỗi xác định   : CONNECTION_ERROR
+• Mức độ nghiêm trọng : HIGH
+• Độ tin cậy (AI)     : 90.0%
+• Bằng chứng thực tế  :
+   - DNS failure
+• Nguyên nhân có thể  :
+   - Typo in Databricks URL
+• Đề xuất xử lý       : Fix host URL in secrets
+======================================================================
+

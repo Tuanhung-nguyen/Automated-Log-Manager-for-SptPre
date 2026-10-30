@@ -103,6 +103,30 @@ class Settings:
         key = os.getenv("GEMINI_API_KEY")
         return key.strip() if key else None
 
+    # ==========================================
+    # Cấu hình Supabase Cloud Database
+    # ==========================================
+    @property
+    def SUPABASE_URL(self) -> Optional[str]:
+        url = os.getenv("SUPABASE_URL")
+        if url:
+            url = url.strip().rstrip("/")
+            if url.endswith("/rest/v1"):
+                url = url[:-len("/rest/v1")]
+        return url or None
+
+    @property
+    def SUPABASE_KEY(self) -> Optional[str]:
+        key = os.getenv("SUPABASE_KEY")
+        return key.strip() if key else None
+
+    # ==========================================
+    # Cấu hình Multi-Project Mặc Định
+    # ==========================================
+    @property
+    def DEFAULT_PROJECT_NAME(self) -> str:
+        return os.getenv("DEFAULT_PROJECT_NAME", "default")
+
 
 settings = Settings()
 

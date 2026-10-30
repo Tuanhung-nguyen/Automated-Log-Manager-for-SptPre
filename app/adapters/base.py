@@ -27,8 +27,8 @@ class BaseSourceAdapter(ABC):
     def parse_webhook_payload(self, payload: Dict[str, Any]) -> Optional[IncidentContext]:
         """
         Tiếp nhận và bóc tách gói tin JSON thô do công cụ tự động bắn về qua Webhook.
-        - Nếu sự cố là THẤT BẠI (failure) -> Đóng gói và trả về IncidentContext chuẩn.
-        - Nếu chạy THÀNH CÔNG (success) hoặc không phải sự cố -> Trả về None để bỏ qua.
+        - Đóng gói thông tin lần chạy pipeline (cả THÀNH CÔNG lẫn THẤT BẠI) thành IncidentContext.
+        - Trả về None nếu gói tin không liên quan tới lần chạy pipeline.
         """
         pass
 

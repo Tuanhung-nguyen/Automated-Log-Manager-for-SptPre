@@ -58,37 +58,78 @@ class GitHubAdapter(BaseSourceAdapter):
         """
         Dành cho Webhook tự động:
         GitHub Actions gửi payload có key 'workflow_run'.
-        - Chỉ xử lý khi kết luận là THẤT BẠI ('failure').
-        - Bỏ qua các sự kiện thành công hoặc đang chạy.
+        - Xử lý cả THÀNH CÔNG ('success') lẫn THẤT BẠI ('failure').
         """
         workflow_run = payload.get("workflow_run", {})
         conclusion = workflow_run.get("conclusion")
         run_id = workflow_run.get("id")
 
-        if conclusion != "failure" or not run_id:
-            # Thành công hoặc không phải lỗi -> Bỏ qua
+        if not run_id or conclusion not in ["success", "failure"]:
             return None
 
         run_name = workflow_run.get("name", "Unknown Workflow")
         repo_info = payload.get("repository", {})
         repo_full_name = repo_info.get("full_name", f"{self.owner}/{self.repo}")
+        run_number = workflow_run.get("run_number", run_id)
 
-        context = IncidentContext(
-            timestamp=workflow_run.get("created_at", ""),
-            component="GitHub Actions Ingestion",
-            error=f"Workflow Run Failed: {run_name}",
-            log=(
-                f"Webhook event: Workflow run #{workflow_run.get('run_number')} (run_id: {run_id}) "
-                f"of repository {repo_full_name} failed. Please investigate logs."
-            ),
-            metrics={
-                "run_id": run_id,
-                "repository": repo_full_name,
-                "html_url": workflow_run.get("html_url"),
-                "source": "github_webhook"
-            }
-        )
-        return context
+        # Tính duration
+        duration_sec = 0.0
+        created_at = workflow_run.get("created_at")
+        updated_at = workflow_run.get("updated_at")
+        if created_at and updated_at:
+            try:
+                from datetime import datetime
+                t0 = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                t1 = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                duration_sec = round((t1 - t0).total_seconds(), 2)
+            except Exception:
+                duration_sec = 0.0
+
+        project_name = repo_info.get("name") or self.repo or getattr(settings, "DEFAULT_PROJECT_NAME", "default")
+
+        if conclusion == "failure":
+            return IncidentContext(
+                timestamp=workflow_run.get("created_at", ""),
+                component="GitHub Actions Ingestion",
+                error=f"Workflow Run Failed: {run_name}",
+                log=(
+                    f"Webhook event: Workflow run #{run_number} (run_id: {run_id}) "
+                    f"of repository {repo_full_name} failed. Please investigate logs."
+                ),
+                metrics={
+                    "run_id": run_id,
+                    "repository": repo_full_name,
+                    "project_name": project_name,
+                    "job_name": run_name,
+                    "job_id": workflow_run.get("workflow_id"),
+                    "status": "FAILED",
+                    "duration_sec": duration_sec,
+                    "html_url": workflow_run.get("html_url"),
+                    "source": "github_webhook"
+                }
+            )
+        else:
+            # Chạy thành công (success): error = None
+            return IncidentContext(
+                timestamp=workflow_run.get("created_at", ""),
+                component="GitHub Actions Ingestion",
+                error=None,
+                log=(
+                    f"Webhook event: Workflow run #{run_number} (run_id: {run_id}) "
+                    f"of repository {repo_full_name} completed successfully."
+                ),
+                metrics={
+                    "run_id": run_id,
+                    "repository": repo_full_name,
+                    "project_name": project_name,
+                    "job_name": run_name,
+                    "job_id": workflow_run.get("workflow_id"),
+                    "status": "SUCCESS",
+                    "duration_sec": duration_sec,
+                    "html_url": workflow_run.get("html_url"),
+                    "source": "github_webhook"
+                }
+            )
 
     def poll_new_failures(self, per_page: int = 5, **kwargs) -> List[IncidentContext]:
         owner = kwargs.get("owner", self.owner)
@@ -118,3 +159,5 @@ class GitHubAdapter(BaseSourceAdapter):
                 failures.append(context)
 
         return failures
+
+

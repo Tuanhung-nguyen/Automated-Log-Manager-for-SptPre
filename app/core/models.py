@@ -3,16 +3,22 @@ from typing import Optional, Literal, Any
 from .exceptions import ErrorCategory
 
 
-class IncidentContext(BaseModel):
+class PipelineRunContext(BaseModel):
     """
-    Data Contract cho INPUT của AI.
-    Đại diện cho thông tin ngữ cảnh sự cố được thu thập từ pipeline/hệ thống.
+    Data Contract cho INPUT của Pipeline/AI.
+    Đại diện cho thông tin ngữ cảnh của một lần chạy (cả SUCCESS lẫn FAILED).
+    - Với lần chạy THÀNH CÔNG: error = None.
+    - Với lần chạy THẤT BẠI: error chứa thông báo lỗi/sự cố.
     """
     timestamp: str
     component: str
-    error: str
+    error: Optional[str] = None
     log: str
     metrics: Optional[dict] = None
+
+
+# Alias đảm bảo tương thích ngược 100% với toàn bộ codebase hiện tại
+IncidentContext = PipelineRunContext
 
 
 class IncidentAnalysis(BaseModel):
