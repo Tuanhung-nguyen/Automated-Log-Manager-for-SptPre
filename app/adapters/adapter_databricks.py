@@ -95,15 +95,42 @@ class DatabricksAdapter(BaseSourceAdapter):
         )
         job_id = payload.get("job_id") or job_obj.get("job_id") or run_obj.get("job_id")
 
-        state_str = str(state).upper()
-        event_str = str(event_type).upper()
+        # Làm giàu dữ liệu từ Databricks Jobs API (Lấy run_duration thực tế và danh sách subtasks)
+        subtasks = run_obj.get("tasks") or payload.get("tasks") or []
+        failed_task_keys = []
+        duration_sec = 0.0
 
-        is_failure = (
-            "FAIL" in event_str
-            or "FAIL" in state_str
-            or "ERROR" in event_str
-            or "ERROR" in state_str
-        )
+        if str(run_id).isdigit() and self.host and self.token:
+            try:
+                run_info = get_databricks_job_run(int(run_id), host=self.host, token=self.token)
+                run_dur_ms = run_info.get("run_duration_ms") or run_info.get("execution_duration_ms")
+                if run_dur_ms:
+                    duration_sec = round(float(run_dur_ms) / 1000.0, 2)
+                if run_info.get("tasks"):
+                    subtasks = run_info["tasks"]
+                if run_info.get("failed_tasks"):
+                    failed_task_keys = [t["task_key"] for t in run_info["failed_tasks"]]
+                if run_info.get("run_name"):
+                    job_name = run_info["run_name"]
+                if run_info.get("result_state"):
+                    state = run_info["result_state"]
+                elif run_info.get("life_cycle_state"):
+                    state = run_info["life_cycle_state"]
+            except Exception:
+                pass
+
+        if duration_sec == 0.0:
+            exec_duration = run_obj.get("execution_duration") or payload.get("execution_duration")
+            if exec_duration:
+                duration_sec = round(float(exec_duration) / 1000.0, 2)
+            elif run_obj.get("end_time") and run_obj.get("start_time"):
+                duration_sec = round((float(run_obj["end_time"]) - float(run_obj["start_time"])) / 1000.0, 2)
+
+        if not failed_task_keys and subtasks:
+            failed_task_keys = [
+                t.get("task_key") for t in subtasks
+                if isinstance(t, dict) and str(t.get("state", {}).get("result_state", "")).upper() in ("FAILED", "INTERNAL_ERROR")
+            ]
 
         # Tự động nhận diện project_name: từ payload webhook -> tags của job -> tiền tố tên job -> default
         project_name = (
@@ -116,18 +143,24 @@ class DatabricksAdapter(BaseSourceAdapter):
             or getattr(settings, "DEFAULT_PROJECT_NAME", "default")
         )
 
-        duration_sec = 0.0
-        exec_duration = run_obj.get("execution_duration") or payload.get("execution_duration")
-        if exec_duration:
-            duration_sec = round(float(exec_duration) / 1000.0, 2)
-        elif run_obj.get("end_time") and run_obj.get("start_time"):
-            duration_sec = round((float(run_obj["end_time"]) - float(run_obj["start_time"])) / 1000.0, 2)
+        state_str = str(state).upper()
+        event_str = str(event_type).upper()
 
-        subtasks = run_obj.get("tasks") or payload.get("tasks") or []
-        failed_task_keys = [
-            t.get("task_key") for t in subtasks
-            if isinstance(t, dict) and str(t.get("state", {}).get("result_state", "")).upper() in ("FAILED", "INTERNAL_ERROR")
-        ]
+        is_failure = (
+            "FAIL" in event_str
+            or "FAIL" in state_str
+            or "ERROR" in event_str
+            or "ERROR" in state_str
+        )
+        is_start = (
+            ("START" in event_str or "START" in state_str or state_str in ("RUNNING", "PENDING"))
+            and not is_failure
+        )
+        is_success = (
+            ("SUCCEED" in event_str or "SUCCESS" in event_str or "SUCCESS" in state_str or "TERMINATED" in state_str)
+            and not is_failure
+            and not is_start
+        )
 
         if is_failure:
             return IncidentContext(
@@ -151,15 +184,31 @@ class DatabricksAdapter(BaseSourceAdapter):
                     "failed_tasks": failed_task_keys
                 }
             )
-        else:
+        elif is_start:
+            # Sự kiện BẮT ĐẦU chạy (On Start)
             return IncidentContext(
                 timestamp=str(payload.get("timestamp") or run_obj.get("start_time") or ""),
                 component="Databricks Spark Engine",
                 error=None,
-                log=(
-                    f"Webhook notification: Databricks Job '{job_name}' (Run ID: {run_id}) "
-                    f"completed successfully. Event: {event_type}. State: {state}."
-                ),
+                log=f"Pipeline '{job_name}' (Run ID: {run_id}) started running.",
+                metrics={
+                    "run_id": int(run_id) if str(run_id).isdigit() else run_id,
+                    "job_id": job_id,
+                    "job_name": job_name,
+                    "project_name": project_name,
+                    "status": "RUNNING",
+                    "duration_sec": 0.0,
+                    "workspace": self.host,
+                    "source": "databricks_webhook"
+                }
+            )
+        else:
+            # Sự kiện HOÀN THÀNH THÀNH CÔNG (On Success)
+            return IncidentContext(
+                timestamp=str(payload.get("timestamp") or run_obj.get("start_time") or ""),
+                component="Databricks Spark Engine",
+                error=None,
+                log=f"Pipeline '{job_name}' (Run ID: {run_id}) completed successfully in {duration_sec}s.",
                 metrics={
                     "run_id": int(run_id) if str(run_id).isdigit() else run_id,
                     "job_id": job_id,

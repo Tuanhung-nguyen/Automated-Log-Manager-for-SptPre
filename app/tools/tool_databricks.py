@@ -79,9 +79,12 @@ def get_databricks_job_run(run_id: int, host: Optional[str] = None, token: Optio
         "result_state": state.get("result_state"),
         "state_message": state.get("state_message"),
         "start_time": data.get("start_time"),
+        "end_time": data.get("end_time"),
+        "run_duration_ms": data.get("run_duration"),
         "execution_duration_ms": data.get("execution_duration"),
         "cluster_instance": data.get("cluster_instance", {}),
-        "failed_tasks": failed_tasks
+        "failed_tasks": failed_tasks,
+        "tasks": tasks
     }
 
 
