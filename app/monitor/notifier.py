@@ -188,6 +188,8 @@ class AlertNotifier:
                 pipeline_id=pipeline_id,
                 source=source,
                 status="FAILED" if result.status != "SKIPPED" else "SUCCESS",
+                start_time=metrics.get("start_time"),
+                end_time=metrics.get("end_time"),
                 duration_sec=pipeline_duration,
                 metadata=metrics
             )

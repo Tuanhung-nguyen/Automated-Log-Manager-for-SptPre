@@ -95,10 +95,12 @@ class DatabricksAdapter(BaseSourceAdapter):
         )
         job_id = payload.get("job_id") or job_obj.get("job_id") or run_obj.get("job_id")
 
-        # Làm giàu dữ liệu từ Databricks Jobs API (Lấy run_duration thực tế và danh sách subtasks)
+        # Làm giàu dữ liệu từ Databricks Jobs API (Lấy run_duration thực tế, tasks và start/end time)
         subtasks = run_obj.get("tasks") or payload.get("tasks") or []
         failed_task_keys = []
         duration_sec = 0.0
+        start_ms = run_obj.get("start_time") or payload.get("start_time")
+        end_ms = run_obj.get("end_time") or payload.get("end_time")
 
         if str(run_id).isdigit() and self.host and self.token:
             try:
@@ -112,6 +114,10 @@ class DatabricksAdapter(BaseSourceAdapter):
                     failed_task_keys = [t["task_key"] for t in run_info["failed_tasks"]]
                 if run_info.get("run_name"):
                     job_name = run_info["run_name"]
+                if run_info.get("start_time"):
+                    start_ms = run_info["start_time"]
+                if run_info.get("end_time"):
+                    end_ms = run_info["end_time"]
                 if run_info.get("result_state"):
                     state = run_info["result_state"]
                 elif run_info.get("life_cycle_state"):
@@ -123,8 +129,17 @@ class DatabricksAdapter(BaseSourceAdapter):
             exec_duration = run_obj.get("execution_duration") or payload.get("execution_duration")
             if exec_duration:
                 duration_sec = round(float(exec_duration) / 1000.0, 2)
-            elif run_obj.get("end_time") and run_obj.get("start_time"):
-                duration_sec = round((float(run_obj["end_time"]) - float(run_obj["start_time"])) / 1000.0, 2)
+            elif end_ms and start_ms:
+                duration_sec = round((float(end_ms) - float(start_ms)) / 1000.0, 2)
+
+        start_time_iso = None
+        end_time_iso = None
+        if start_ms and str(start_ms).isdigit():
+            from datetime import datetime, timezone
+            start_time_iso = datetime.fromtimestamp(float(start_ms) / 1000.0, tz=timezone.utc).isoformat()
+        if end_ms and str(end_ms).isdigit():
+            from datetime import datetime, timezone
+            end_time_iso = datetime.fromtimestamp(float(end_ms) / 1000.0, tz=timezone.utc).isoformat()
 
         if not failed_task_keys and subtasks:
             failed_task_keys = [
@@ -178,6 +193,8 @@ class DatabricksAdapter(BaseSourceAdapter):
                     "project_name": project_name,
                     "status": "FAILED",
                     "duration_sec": duration_sec,
+                    "start_time": start_time_iso,
+                    "end_time": end_time_iso,
                     "workspace": self.host,
                     "source": "databricks_webhook",
                     "tasks": subtasks,
@@ -198,6 +215,8 @@ class DatabricksAdapter(BaseSourceAdapter):
                     "project_name": project_name,
                     "status": "RUNNING",
                     "duration_sec": 0.0,
+                    "start_time": start_time_iso,
+                    "end_time": None,
                     "workspace": self.host,
                     "source": "databricks_webhook"
                 }
@@ -216,6 +235,8 @@ class DatabricksAdapter(BaseSourceAdapter):
                     "project_name": project_name,
                     "status": "SUCCESS",
                     "duration_sec": duration_sec,
+                    "start_time": start_time_iso,
+                    "end_time": end_time_iso,
                     "workspace": self.host,
                     "source": "databricks_webhook",
                     "tasks": subtasks

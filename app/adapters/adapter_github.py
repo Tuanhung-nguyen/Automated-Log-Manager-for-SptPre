@@ -104,6 +104,8 @@ class GitHubAdapter(BaseSourceAdapter):
                     "job_id": workflow_run.get("workflow_id"),
                     "status": "FAILED",
                     "duration_sec": duration_sec,
+                    "start_time": created_at,
+                    "end_time": updated_at,
                     "html_url": workflow_run.get("html_url"),
                     "source": "github_webhook"
                 }
@@ -126,6 +128,8 @@ class GitHubAdapter(BaseSourceAdapter):
                     "job_id": workflow_run.get("workflow_id"),
                     "status": "SUCCESS",
                     "duration_sec": duration_sec,
+                    "start_time": created_at,
+                    "end_time": updated_at,
                     "html_url": workflow_run.get("html_url"),
                     "source": "github_webhook"
                 }

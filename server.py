@@ -2,6 +2,7 @@ import sys
 import json
 import threading
 from typing import Optional
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from app.config import settings
 from app.llm import LLMClient
@@ -54,6 +55,7 @@ def _record_start_async(ctx: IncidentContext, source_name: str, url_project: Opt
             return
 
         # 1. Upsert pipeline_runs với status = 'RUNNING'
+        start_time = metrics.get("start_time") or datetime.now(timezone.utc).isoformat()
         db.upsert_pipeline_run(
             run_id=run_id,
             project_name=project_name,
@@ -61,6 +63,7 @@ def _record_start_async(ctx: IncidentContext, source_name: str, url_project: Opt
             pipeline_id=str(metrics.get("job_id") or ""),
             source=metrics.get("source", source_name),
             status="RUNNING",
+            start_time=start_time,
             duration_sec=0.0,
             metadata=metrics
         )
@@ -108,6 +111,8 @@ def _record_success_async(ctx: IncidentContext, source_name: str, url_project: O
             return
 
         # 1. Ghi nhận / Upsert vào bảng pipeline_runs (Cập nhật từ RUNNING -> SUCCESS kèm duration thực tế)
+        start_time = metrics.get("start_time")
+        end_time = metrics.get("end_time") or datetime.now(timezone.utc).isoformat()
         db.upsert_pipeline_run(
             run_id=run_id,
             project_name=project_name,
@@ -115,6 +120,8 @@ def _record_success_async(ctx: IncidentContext, source_name: str, url_project: O
             pipeline_id=str(metrics.get("job_id") or ""),
             source=metrics.get("source", source_name),
             status="SUCCESS",
+            start_time=start_time,
+            end_time=end_time,
             duration_sec=duration_sec,
             metadata=metrics
         )
@@ -194,6 +201,8 @@ def _run_pipeline_async(ctx: IncidentContext, source_name: str, url_project: Opt
         db = get_db()
         if db.is_configured:
             # Ghi nhận pipeline_runs (FAILED)
+            start_time = metrics.get("start_time")
+            end_time = metrics.get("end_time") or datetime.now(timezone.utc).isoformat()
             db.upsert_pipeline_run(
                 run_id=run_id,
                 project_name=project_name,
@@ -201,6 +210,8 @@ def _run_pipeline_async(ctx: IncidentContext, source_name: str, url_project: Opt
                 pipeline_id=str(metrics.get("job_id") or ""),
                 source=metrics.get("source", source_name),
                 status="FAILED",
+                start_time=start_time,
+                end_time=end_time,
                 duration_sec=duration_sec,
                 metadata=metrics
             )
