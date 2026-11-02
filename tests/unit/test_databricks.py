@@ -105,17 +105,14 @@ class TestDatabricksIntegration(unittest.TestCase):
         self.assertEqual(ctx_success.metrics["status"], "SUCCESS")
         self.assertEqual(ctx_success.metrics["run_id"], 7891)
 
-        # Test case 3: Sự kiện khởi động (On Start) -> Nhận diện RUNNING
+        # Test case 3: Sự kiện khởi động (On Start) -> Bỏ qua (None) để tránh rác DB
         payload_start = {
             "event_type": "JOB_RUN_STARTED",
             "run_id": 7892,
             "state": "RUNNING"
         }
         ctx_start = adapter.parse_webhook_payload(payload_start)
-        self.assertIsNotNone(ctx_start)
-        self.assertIsNone(ctx_start.error)
-        self.assertEqual(ctx_start.metrics["status"], "RUNNING")
-        self.assertEqual(ctx_start.metrics["run_id"], 7892)
+        self.assertIsNone(ctx_start)
 
     def test_policy_allows_databricks_tools(self):
         # Đảm bảo policy cho phép tự động thực thi các tool READ này

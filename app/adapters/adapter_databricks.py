@@ -202,26 +202,9 @@ class DatabricksAdapter(BaseSourceAdapter):
                 }
             )
         elif is_start:
-            # Sự kiện BẮT ĐẦU chạy (On Start)
-            return IncidentContext(
-                timestamp=str(payload.get("timestamp") or run_obj.get("start_time") or ""),
-                component="Databricks Spark Engine",
-                error=None,
-                log=f"Pipeline '{job_name}' (Run ID: {run_id}) started running.",
-                metrics={
-                    "run_id": int(run_id) if str(run_id).isdigit() else run_id,
-                    "job_id": job_id,
-                    "job_name": job_name,
-                    "project_name": project_name,
-                    "status": "RUNNING",
-                    "duration_sec": 0.0,
-                    "start_time": start_time_iso,
-                    "end_time": None,
-                    "workspace": self.host,
-                    "source": "databricks_webhook"
-                }
-            )
-        else:
+            # Sự kiện BẮT ĐẦU chạy (On Start): Bỏ qua không ghi nhận DB để giữ bảng gọn gàng, sạch sẽ
+            return None
+        elif is_success or ("TERMINATED" in state_str and not is_failure):
             # Sự kiện HOÀN THÀNH THÀNH CÔNG (On Success)
             return IncidentContext(
                 timestamp=str(payload.get("timestamp") or run_obj.get("start_time") or ""),
@@ -242,6 +225,9 @@ class DatabricksAdapter(BaseSourceAdapter):
                     "tasks": subtasks
                 }
             )
+        else:
+            # Trạng thái trung gian khác (PENDING, WAITING...) -> Bỏ qua
+            return None
 
     def poll_new_failures(self, per_page: int = 5, **kwargs) -> List[IncidentContext]:
         """(Tùy chọn) Quét danh sách runs gần nhất trên Databricks nếu dùng polling."""

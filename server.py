@@ -34,62 +34,6 @@ pipeline = build_pipeline()
 notifier = AlertNotifier()
 
 
-def _record_start_async(ctx: IncidentContext, source_name: str, url_project: Optional[str] = None):
-    """
-    Ghi nhận trạng thái RUNNING khi pipeline mới bắt đầu chạy vào Supabase.
-    - Cập nhật pipeline_runs với status='RUNNING'.
-    - Ghi 1 dòng thông báo khởi động vào log_events.
-    """
-    try:
-        metrics = ctx.metrics or {}
-        run_id = str(metrics.get("run_id", "unknown"))
-        pipeline_name = metrics.get("job_name") or ctx.component or "Data Pipeline"
-        project_name = metrics.get("project_name") or url_project or getattr(settings, "DEFAULT_PROJECT_NAME", "default")
-
-        print(f"🚀 [BACKGROUND - RUNNING] Ghi nhận Pipeline '{pipeline_name}' (Run ID: {run_id}, Project: {project_name}) bắt đầu chạy...", flush=True)
-
-        from app.db import get_db
-        db = get_db()
-        if not db.is_configured:
-            print("ℹ️ [SUPABASE SKIP] Chưa cấu hình Supabase URL/KEY, bỏ qua lưu DB.", flush=True)
-            return
-
-        # 1. Upsert pipeline_runs với status = 'RUNNING'
-        start_time = metrics.get("start_time") or datetime.now(timezone.utc).isoformat()
-        db.upsert_pipeline_run(
-            run_id=run_id,
-            project_name=project_name,
-            pipeline_name=pipeline_name,
-            pipeline_id=str(metrics.get("job_id") or ""),
-            source=metrics.get("source", source_name),
-            status="RUNNING",
-            start_time=start_time,
-            duration_sec=0.0,
-            metadata=metrics
-        )
-
-        # 2. Ghi 1 dòng duy nhất vào log_events thông báo pipeline đã khởi động
-        db.insert_log_event(
-            run_id=run_id,
-            level="INFO",
-            task_name=pipeline_name,
-            message=f"Pipeline '{pipeline_name}' started running.",
-            payload={
-                "status": "RUNNING",
-                "pipeline_name": pipeline_name,
-                "project_name": project_name,
-                **metrics
-            }
-        )
-        print(f"💾 [SUPABASE] Đã ghi nhận pipeline '{pipeline_name}' đang chạy (Run ID: {run_id}).", flush=True)
-
-    except Exception as db_err:
-        import traceback
-        print(f"⚠️ [SUPABASE START SYNC WARN]: {db_err}", flush=True)
-        traceback.print_exc(file=sys.stdout)
-        sys.stdout.flush()
-
-
 def _record_success_async(ctx: IncidentContext, source_name: str, url_project: Optional[str] = None):
     """
     Lưu trữ trạng thái và log của lần chạy THÀNH CÔNG vào Supabase ở Background Thread.
@@ -356,29 +300,7 @@ class GenericWebhookHandler(BaseHTTPRequestHandler):
         duration_sec = float(metrics.get("duration_sec", 0.0))
         project_name = metrics.get("project_name") or url_project or getattr(settings, "DEFAULT_PROJECT_NAME", "default")
 
-        # 5. Nếu là sự kiện KHỞI ĐỘNG (RUNNING / ON START):
-        if status == "RUNNING":
-            print(f"🚀 [PIPELINE BẮT ĐẦU] Pipeline '{pipeline_name}' (Run ID: {run_id}, Project: {project_name}) đang chạy...", flush=True)
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({
-                "status": "ACCEPTED",
-                "pipeline_status": "RUNNING",
-                "run_id": run_id,
-                "message": "Pipeline start event received. Recording to database in background."
-            }).encode("utf-8"))
-
-            thread = threading.Thread(
-                target=_record_start_async,
-                args=(context, source_name, url_project),
-                daemon=True
-            )
-            thread.start()
-            return
-
-        # 6. Nếu là run THÀNH CÔNG: Phản hồi 200 OK ngay (< 50ms) để caller không bị timeout,
+        # 5. Nếu là run THÀNH CÔNG: Phản hồi 200 OK ngay (< 50ms) để caller không bị timeout,
         # sau đó đẩy tác vụ lưu Supabase vào Background Thread.
         if status == "SUCCESS":
             print(f"✅ [RUN THÀNH CÔNG] Pipeline '{pipeline_name}' (Run ID: {run_id}, Project: {project_name}) chạy thành công.", flush=True)

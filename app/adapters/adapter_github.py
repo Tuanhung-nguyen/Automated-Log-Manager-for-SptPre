@@ -87,6 +87,28 @@ class GitHubAdapter(BaseSourceAdapter):
 
         project_name = repo_info.get("name") or self.repo or getattr(settings, "DEFAULT_PROJECT_NAME", "default")
 
+        # Làm giàu danh sách Jobs con từ GitHub Actions API
+        subtasks = []
+        try:
+            from app.tools.tool_github import get_github_workflow_jobs
+            jobs_info = get_github_workflow_jobs(run_id=int(run_id), owner=self.owner, repo=self.repo, token=self.token)
+            for j in jobs_info.get("jobs", []):
+                j_start = j.get("started_at")
+                j_end = j.get("completed_at")
+                j_dur_ms = 0
+                if j_start and j_end:
+                    from datetime import datetime
+                    t_s = datetime.fromisoformat(j_start.replace("Z", "+00:00"))
+                    t_e = datetime.fromisoformat(j_end.replace("Z", "+00:00"))
+                    j_dur_ms = int(round((t_e - t_s).total_seconds() * 1000))
+                subtasks.append({
+                    "task_key": j.get("name"),
+                    "execution_duration": j_dur_ms,
+                    "state": {"result_state": (j.get("conclusion") or j.get("status") or "SUCCESS").upper()}
+                })
+        except Exception:
+            pass
+
         if conclusion == "failure":
             return IncidentContext(
                 timestamp=workflow_run.get("created_at", ""),
@@ -107,7 +129,8 @@ class GitHubAdapter(BaseSourceAdapter):
                     "start_time": created_at,
                     "end_time": updated_at,
                     "html_url": workflow_run.get("html_url"),
-                    "source": "github_webhook"
+                    "source": "github_webhook",
+                    "tasks": subtasks
                 }
             )
         else:
@@ -131,7 +154,8 @@ class GitHubAdapter(BaseSourceAdapter):
                     "start_time": created_at,
                     "end_time": updated_at,
                     "html_url": workflow_run.get("html_url"),
-                    "source": "github_webhook"
+                    "source": "github_webhook",
+                    "tasks": subtasks
                 }
             )
 
